@@ -1,9 +1,11 @@
 ### === test_todo_model.py ===
 ```python
 import unittest
+from unittest.mock import Mock
 from todo_app.models import Todo
 
 class TestTodoModel(unittest.TestCase):
+
     def test_todo_creation(self):
         todo = Todo(title="Test Todo", description="This is a test todo")
         self.assertEqual(todo.title, "Test Todo")
@@ -13,190 +15,322 @@ class TestTodoModel(unittest.TestCase):
         todo = Todo(title="Test Todo", description="This is a test todo")
         self.assertEqual(str(todo), "Test Todo")
 
-if __name__ == "__main__":
+    def test_todo_equals(self):
+        todo1 = Todo(title="Test Todo", description="This is a test todo")
+        todo2 = Todo(title="Test Todo", description="This is a test todo")
+        self.assertEqual(todo1, todo2)
+
+if __name__ == '__main__':
     unittest.main()
 ```
 
-### === test_todo_api.py ===
+### === test_todo_repository.py ===
 ```python
 import unittest
-import json
-from todo_app import app, db
+from unittest.mock import Mock
+from todo_app.repositories import TodoRepository
 from todo_app.models import Todo
 
-class TestTodoAPI(unittest.TestCase):
-    def setUp(self):
-        app.config["TESTING"] = True
-        app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///:memory:"
-        db.create_all()
+class TestTodoRepository(unittest.TestCase):
 
     def test_get_all_todos(self):
+        # Arrange
+        todo_repo = TodoRepository()
         todo1 = Todo(title="Test Todo 1", description="This is a test todo 1")
         todo2 = Todo(title="Test Todo 2", description="This is a test todo 2")
-        db.session.add(todo1)
-        db.session.add(todo2)
-        db.session.commit()
+        todo_repo.todos = [todo1, todo2]
 
-        with app.test_client() as client:
-            response = client.get("/todos")
-            self.assertEqual(response.status_code, 200)
-            self.assertEqual(len(json.loads(response.data)), 2)
+        # Act
+        todos = todo_repo.get_all_todos()
+
+        # Assert
+        self.assertEqual(len(todos), 2)
+        self.assertIn(todo1, todos)
+        self.assertIn(todo2, todos)
 
     def test_get_todo_by_id(self):
-        todo = Todo(title="Test Todo", description="This is a test todo")
-        db.session.add(todo)
-        db.session.commit()
+        # Arrange
+        todo_repo = TodoRepository()
+        todo1 = Todo(title="Test Todo 1", description="This is a test todo 1")
+        todo2 = Todo(title="Test Todo 2", description="This is a test todo 2")
+        todo_repo.todos = [todo1, todo2]
 
-        with app.test_client() as client:
-            response = client.get(f"/todos/{todo.id}")
-            self.assertEqual(response.status_code, 200)
-            self.assertEqual(json.loads(response.data)["title"], "Test Todo")
+        # Act
+        todo = todo_repo.get_todo_by_id(1)
+
+        # Assert
+        self.assertEqual(todo, todo1)
 
     def test_create_todo(self):
-        with app.test_client() as client:
-            response = client.post("/todos", data=json.dumps({"title": "Test Todo", "description": "This is a test todo"}), content_type="application/json")
-            self.assertEqual(response.status_code, 201)
-            self.assertEqual(json.loads(response.data)["title"], "Test Todo")
+        # Arrange
+        todo_repo = TodoRepository()
+        todo = Todo(title="Test Todo", description="This is a test todo")
+
+        # Act
+        todo_repo.create_todo(todo)
+
+        # Assert
+        self.assertIn(todo, todo_repo.todos)
 
     def test_update_todo(self):
+        # Arrange
+        todo_repo = TodoRepository()
         todo = Todo(title="Test Todo", description="This is a test todo")
-        db.session.add(todo)
-        db.session.commit()
+        todo_repo.todos = [todo]
 
-        with app.test_client() as client:
-            response = client.put(f"/todos/{todo.id}", data=json.dumps({"title": "Updated Test Todo", "description": "This is an updated test todo"}), content_type="application/json")
-            self.assertEqual(response.status_code, 200)
-            self.assertEqual(json.loads(response.data)["title"], "Updated Test Todo")
+        # Act
+        updated_todo = Todo(title="Updated Test Todo", description="This is an updated test todo")
+        todo_repo.update_todo(updated_todo)
+
+        # Assert
+        self.assertEqual(todo_repo.todos[0].title, "Updated Test Todo")
+        self.assertEqual(todo_repo.todos[0].description, "This is an updated test todo")
 
     def test_delete_todo(self):
+        # Arrange
+        todo_repo = TodoRepository()
         todo = Todo(title="Test Todo", description="This is a test todo")
-        db.session.add(todo)
-        db.session.commit()
+        todo_repo.todos = [todo]
 
-        with app.test_client() as client:
-            response = client.delete(f"/todos/{todo.id}")
-            self.assertEqual(response.status_code, 204)
+        # Act
+        todo_repo.delete_todo(todo)
 
-if __name__ == "__main__":
+        # Assert
+        self.assertEqual(len(todo_repo.todos), 0)
+
+if __name__ == '__main__':
     unittest.main()
 ```
 
 ### === test_todo_service.py ===
 ```python
 import unittest
+from unittest.mock import Mock
 from todo_app.services import TodoService
+from todo_app.repositories import TodoRepository
+from todo_app.models import Todo
 
 class TestTodoService(unittest.TestCase):
-    def test_get_all_todos(self):
-        # Mock the database query
-        todos = [
-            {"id": 1, "title": "Test Todo 1", "description": "This is a test todo 1"},
-            {"id": 2, "title": "Test Todo 2", "description": "This is a test todo 2"}
-        ]
 
-        service = TodoService()
-        result = service.get_all_todos()
-        self.assertEqual(result, todos)
+    def test_get_all_todos(self):
+        # Arrange
+        todo_repo = Mock(spec=TodoRepository)
+        todo_service = TodoService(todo_repo)
+        todo1 = Todo(title="Test Todo 1", description="This is a test todo 1")
+        todo2 = Todo(title="Test Todo 2", description="This is a test todo 2")
+        todo_repo.get_all_todos.return_value = [todo1, todo2]
+
+        # Act
+        todos = todo_service.get_all_todos()
+
+        # Assert
+        self.assertEqual(len(todos), 2)
+        self.assertIn(todo1, todos)
+        self.assertIn(todo2, todos)
 
     def test_get_todo_by_id(self):
-        # Mock the database query
-        todo = {"id": 1, "title": "Test Todo", "description": "This is a test todo"}
+        # Arrange
+        todo_repo = Mock(spec=TodoRepository)
+        todo_service = TodoService(todo_repo)
+        todo = Todo(title="Test Todo", description="This is a test todo")
+        todo_repo.get_todo_by_id.return_value = todo
 
-        service = TodoService()
-        result = service.get_todo_by_id(1)
+        # Act
+        result = todo_service.get_todo_by_id(1)
+
+        # Assert
         self.assertEqual(result, todo)
 
     def test_create_todo(self):
-        # Mock the database query
-        todo = {"id": 1, "title": "Test Todo", "description": "This is a test todo"}
+        # Arrange
+        todo_repo = Mock(spec=TodoRepository)
+        todo_service = TodoService(todo_repo)
+        todo = Todo(title="Test Todo", description="This is a test todo")
 
-        service = TodoService()
-        result = service.create_todo({"title": "Test Todo", "description": "This is a test todo"})
-        self.assertEqual(result, todo)
+        # Act
+        todo_service.create_todo(todo)
+
+        # Assert
+        todo_repo.create_todo.assert_called_once_with(todo)
 
     def test_update_todo(self):
-        # Mock the database query
-        todo = {"id": 1, "title": "Updated Test Todo", "description": "This is an updated test todo"}
+        # Arrange
+        todo_repo = Mock(spec=TodoRepository)
+        todo_service = TodoService(todo_repo)
+        todo = Todo(title="Test Todo", description="This is a test todo")
 
-        service = TodoService()
-        result = service.update_todo(1, {"title": "Updated Test Todo", "description": "This is an updated test todo"})
-        self.assertEqual(result, todo)
+        # Act
+        todo_service.update_todo(todo)
+
+        # Assert
+        todo_repo.update_todo.assert_called_once_with(todo)
 
     def test_delete_todo(self):
-        # Mock the database query
-        service = TodoService()
-        result = service.delete_todo(1)
-        self.assertTrue(result)
+        # Arrange
+        todo_repo = Mock(spec=TodoRepository)
+        todo_service = TodoService(todo_repo)
+        todo = Todo(title="Test Todo", description="This is a test todo")
 
-if __name__ == "__main__":
+        # Act
+        todo_service.delete_todo(todo)
+
+        # Assert
+        todo_repo.delete_todo.assert_called_once_with(todo)
+
+if __name__ == '__main__':
     unittest.main()
 ```
 
-### === conftest.py ===
+### === test_todo_controller.py ===
 ```python
-import pytest
-from todo_app import app, db
+import unittest
+from unittest.mock import Mock
+from todo_app.controllers import TodoController
+from todo_app.services import TodoService
+from todo_app.models import Todo
 
-@pytest.fixture
-def client():
-    app.config["TESTING"] = True
-    app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///:memory:"
-    db.create_all()
+class TestTodoController(unittest.TestCase):
 
-    with app.test_client() as client:
-        yield client
+    def test_get_all_todos(self):
+        # Arrange
+        todo_service = Mock(spec=TodoService)
+        todo_controller = TodoController(todo_service)
+        todo1 = Todo(title="Test Todo 1", description="This is a test todo 1")
+        todo2 = Todo(title="Test Todo 2", description="This is a test todo 2")
+        todo_service.get_all_todos.return_value = [todo1, todo2]
 
-    db.session.remove()
-    db.drop_all()
+        # Act
+        response = todo_controller.get_all_todos()
+
+        # Assert
+        self.assertEqual(len(response), 2)
+        self.assertIn(todo1, response)
+        self.assertIn(todo2, response)
+
+    def test_get_todo_by_id(self):
+        # Arrange
+        todo_service = Mock(spec=TodoService)
+        todo_controller = TodoController(todo_service)
+        todo = Todo(title="Test Todo", description="This is a test todo")
+        todo_service.get_todo_by_id.return_value = todo
+
+        # Act
+        response = todo_controller.get_todo_by_id(1)
+
+        # Assert
+        self.assertEqual(response, todo)
+
+    def test_create_todo(self):
+        # Arrange
+        todo_service = Mock(spec=TodoService)
+        todo_controller = TodoController(todo_service)
+        todo = Todo(title="Test Todo", description="This is a test todo")
+
+        # Act
+        todo_controller.create_todo(todo)
+
+        # Assert
+        todo_service.create_todo.assert_called_once_with(todo)
+
+    def test_update_todo(self):
+        # Arrange
+        todo_service = Mock(spec=TodoService)
+        todo_controller = TodoController(todo_service)
+        todo = Todo(title="Test Todo", description="This is a test todo")
+
+        # Act
+        todo_controller.update_todo(todo)
+
+        # Assert
+        todo_service.update_todo.assert_called_once_with(todo)
+
+    def test_delete_todo(self):
+        # Arrange
+        todo_service = Mock(spec=TodoService)
+        todo_controller = TodoController(todo_service)
+        todo = Todo(title="Test Todo", description="This is a test todo")
+
+        # Act
+        todo_controller.delete_todo(todo)
+
+        # Assert
+        todo_service.delete_todo.assert_called_once_with(todo)
+
+if __name__ == '__main__':
+    unittest.main()
 ```
 
-### === test_todo_api_integration.py ===
+### === test_api.py ===
 ```python
-import pytest
-from conftest import client
+import unittest
+from unittest.mock import Mock
+from todo_app.api import app
+import json
 
-def test_get_all_todos(client):
-    # Create some todos
-    client.post("/todos", data={"title": "Test Todo 1", "description": "This is a test todo 1"})
-    client.post("/todos", data={"title": "Test Todo 2", "description": "This is a test todo 2"})
+class TestAPI(unittest.TestCase):
 
-    # Get all todos
-    response = client.get("/todos")
-    assert response.status_code == 200
-    assert len(response.json) == 2
+    def test_get_all_todos(self):
+        # Arrange
+        client = app.test_client()
 
-def test_get_todo_by_id(client):
-    # Create a todo
-    response = client.post("/todos", data={"title": "Test Todo", "description": "This is a test todo"})
-    todo_id = response.json["id"]
+        # Act
+        response = client.get('/todos')
 
-    # Get the todo by id
-    response = client.get(f"/todos/{todo_id}")
-    assert response.status_code == 200
-    assert response.json["title"] == "Test Todo"
+        # Assert
+        self.assertEqual(response.status_code, 200)
 
-def test_create_todo(client):
-    # Create a todo
-    response = client.post("/todos", data={"title": "Test Todo", "description": "This is a test todo"})
-    assert response.status_code == 201
-    assert response.json["title"] == "Test Todo"
+    def test_get_todo_by_id(self):
+        # Arrange
+        client = app.test_client()
 
-def test_update_todo(client):
-    # Create a todo
-    response = client.post("/todos", data={"title": "Test Todo", "description": "This is a test todo"})
-    todo_id = response.json["id"]
+        # Act
+        response = client.get('/todos/1')
 
-    # Update the todo
-    response = client.put(f"/todos/{todo_id}", data={"title": "Updated Test Todo", "description": "This is an updated test todo"})
-    assert response.status_code == 200
-    assert response.json["title"] == "Updated Test Todo"
+        # Assert
+        self.assertEqual(response.status_code, 200)
 
-def test_delete_todo(client):
-    # Create a todo
-    response = client.post("/todos", data={"title": "Test Todo", "description": "This is a test todo"})
-    todo_id = response.json["id"]
+    def test_create_todo(self):
+        # Arrange
+        client = app.test_client()
+        todo = {'title': 'Test Todo', 'description': 'This is a test todo'}
 
-    # Delete the todo
-    response = client.delete(f"/todos/{todo_id}")
-    assert response.status_code == 204
+        # Act
+        response = client.post('/todos', data=json.dumps(todo), content_type='application/json')
+
+        # Assert
+        self.assertEqual(response.status_code, 201)
+
+    def test_update_todo(self):
+        # Arrange
+        client = app.test_client()
+        todo = {'title': 'Updated Test Todo', 'description': 'This is an updated test todo'}
+
+        # Act
+        response = client.put('/todos/1', data=json.dumps(todo), content_type='application/json')
+
+        # Assert
+        self.assertEqual(response.status_code, 200)
+
+    def test_delete_todo(self):
+        # Arrange
+        client = app.test_client()
+
+        # Act
+        response = client.delete('/todos/1')
+
+        # Assert
+        self.assertEqual(response.status_code, 204)
+
+if __name__ == '__main__':
+    unittest.main()
 ```
+
+These tests cover the following scenarios:
+
+- Unit tests for the Todo model
+- Unit tests for the Todo repository
+- Unit tests for the Todo service
+- Unit tests for the Todo controller
+- Integration tests for the API endpoints
+
+Note: These tests are just examples and may need to be modified to fit the specific requirements of your application. Additionally, you may need to add more tests to cover all the scenarios.
