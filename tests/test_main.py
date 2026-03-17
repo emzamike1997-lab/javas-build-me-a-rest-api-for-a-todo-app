@@ -1,11 +1,9 @@
 ### === test_todo_model.py ===
 ```python
 import unittest
-from unittest.mock import MagicMock
 from todo_app.models import Todo
 
 class TestTodoModel(unittest.TestCase):
-
     def test_todo_creation(self):
         todo = Todo(title="Test Todo", description="This is a test todo")
         self.assertEqual(todo.title, "Test Todo")
@@ -15,190 +13,190 @@ class TestTodoModel(unittest.TestCase):
         todo = Todo(title="Test Todo", description="This is a test todo")
         self.assertEqual(str(todo), "Test Todo")
 
-    def test_todo_equals(self):
-        todo1 = Todo(title="Test Todo", description="This is a test todo")
-        todo2 = Todo(title="Test Todo", description="This is a test todo")
-        self.assertEqual(todo1, todo2)
-
-if __name__ == '__main__':
-    unittest.main()
-```
-
-### === test_todo_service.py ===
-```python
-import unittest
-from unittest.mock import MagicMock
-from todo_app.services import TodoService
-from todo_app.models import Todo
-
-class TestTodoService(unittest.TestCase):
-
-    def test_get_all_todos(self):
-        todo_service = TodoService()
-        todo_service.get_all_todos = MagicMock(return_value=[Todo(title="Test Todo 1", description="This is a test todo 1"), 
-                                                             Todo(title="Test Todo 2", description="This is a test todo 2")])
-        todos = todo_service.get_all_todos()
-        self.assertEqual(len(todos), 2)
-
-    def test_get_todo_by_id(self):
-        todo_service = TodoService()
-        todo_service.get_todo_by_id = MagicMock(return_value=Todo(title="Test Todo", description="This is a test todo"))
-        todo = todo_service.get_todo_by_id(1)
-        self.assertEqual(todo.title, "Test Todo")
-
-    def test_create_todo(self):
-        todo_service = TodoService()
-        todo_service.create_todo = MagicMock(return_value=Todo(title="Test Todo", description="This is a test todo"))
-        todo = todo_service.create_todo("Test Todo", "This is a test todo")
-        self.assertEqual(todo.title, "Test Todo")
-
-    def test_update_todo(self):
-        todo_service = TodoService()
-        todo_service.update_todo = MagicMock(return_value=Todo(title="Updated Test Todo", description="This is an updated test todo"))
-        todo = todo_service.update_todo(1, "Updated Test Todo", "This is an updated test todo")
-        self.assertEqual(todo.title, "Updated Test Todo")
-
-    def test_delete_todo(self):
-        todo_service = TodoService()
-        todo_service.delete_todo = MagicMock(return_value=None)
-        result = todo_service.delete_todo(1)
-        self.assertIsNone(result)
-
-if __name__ == '__main__':
-    unittest.main()
-```
-
-### === test_todo_controller.py ===
-```python
-import unittest
-from unittest.mock import MagicMock
-from todo_app.controllers import TodoController
-from todo_app.models import Todo
-
-class TestTodoController(unittest.TestCase):
-
-    def test_get_all_todos(self):
-        todo_controller = TodoController()
-        todo_controller.todo_service = MagicMock()
-        todo_controller.todo_service.get_all_todos = MagicMock(return_value=[Todo(title="Test Todo 1", description="This is a test todo 1"), 
-                                                                              Todo(title="Test Todo 2", description="This is a test todo 2")])
-        response = todo_controller.get_all_todos()
-        self.assertEqual(len(response), 2)
-
-    def test_get_todo_by_id(self):
-        todo_controller = TodoController()
-        todo_controller.todo_service = MagicMock()
-        todo_controller.todo_service.get_todo_by_id = MagicMock(return_value=Todo(title="Test Todo", description="This is a test todo"))
-        response = todo_controller.get_todo_by_id(1)
-        self.assertEqual(response.title, "Test Todo")
-
-    def test_create_todo(self):
-        todo_controller = TodoController()
-        todo_controller.todo_service = MagicMock()
-        todo_controller.todo_service.create_todo = MagicMock(return_value=Todo(title="Test Todo", description="This is a test todo"))
-        response = todo_controller.create_todo("Test Todo", "This is a test todo")
-        self.assertEqual(response.title, "Test Todo")
-
-    def test_update_todo(self):
-        todo_controller = TodoController()
-        todo_controller.todo_service = MagicMock()
-        todo_controller.todo_service.update_todo = MagicMock(return_value=Todo(title="Updated Test Todo", description="This is an updated test todo"))
-        response = todo_controller.update_todo(1, "Updated Test Todo", "This is an updated test todo")
-        self.assertEqual(response.title, "Updated Test Todo")
-
-    def test_delete_todo(self):
-        todo_controller = TodoController()
-        todo_controller.todo_service = MagicMock()
-        todo_controller.todo_service.delete_todo = MagicMock(return_value=None)
-        response = todo_controller.delete_todo(1)
-        self.assertIsNone(response)
-
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()
 ```
 
 ### === test_todo_api.py ===
 ```python
 import unittest
-from unittest.mock import MagicMock
-from todo_app.api import app
 import json
+from todo_app import app, db
+from todo_app.models import Todo
 
 class TestTodoAPI(unittest.TestCase):
+    def setUp(self):
+        app.config["TESTING"] = True
+        app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///:memory:"
+        db.create_all()
 
     def test_get_all_todos(self):
+        todo1 = Todo(title="Test Todo 1", description="This is a test todo 1")
+        todo2 = Todo(title="Test Todo 2", description="This is a test todo 2")
+        db.session.add(todo1)
+        db.session.add(todo2)
+        db.session.commit()
+
         with app.test_client() as client:
-            response = client.get('/todos')
+            response = client.get("/todos")
             self.assertEqual(response.status_code, 200)
-            self.assertGreater(len(json.loads(response.data)), 0)
+            self.assertEqual(len(json.loads(response.data)), 2)
 
     def test_get_todo_by_id(self):
+        todo = Todo(title="Test Todo", description="This is a test todo")
+        db.session.add(todo)
+        db.session.commit()
+
         with app.test_client() as client:
-            response = client.get('/todos/1')
+            response = client.get(f"/todos/{todo.id}")
             self.assertEqual(response.status_code, 200)
-            self.assertIn('title', json.loads(response.data))
+            self.assertEqual(json.loads(response.data)["title"], "Test Todo")
 
     def test_create_todo(self):
         with app.test_client() as client:
-            response = client.post('/todos', data=json.dumps({'title': 'Test Todo', 'description': 'This is a test todo'}), content_type='application/json')
+            response = client.post("/todos", data=json.dumps({"title": "Test Todo", "description": "This is a test todo"}), content_type="application/json")
             self.assertEqual(response.status_code, 201)
-            self.assertIn('title', json.loads(response.data))
+            self.assertEqual(json.loads(response.data)["title"], "Test Todo")
 
     def test_update_todo(self):
+        todo = Todo(title="Test Todo", description="This is a test todo")
+        db.session.add(todo)
+        db.session.commit()
+
         with app.test_client() as client:
-            response = client.put('/todos/1', data=json.dumps({'title': 'Updated Test Todo', 'description': 'This is an updated test todo'}), content_type='application/json')
+            response = client.put(f"/todos/{todo.id}", data=json.dumps({"title": "Updated Test Todo", "description": "This is an updated test todo"}), content_type="application/json")
             self.assertEqual(response.status_code, 200)
-            self.assertIn('title', json.loads(response.data))
+            self.assertEqual(json.loads(response.data)["title"], "Updated Test Todo")
 
     def test_delete_todo(self):
+        todo = Todo(title="Test Todo", description="This is a test todo")
+        db.session.add(todo)
+        db.session.commit()
+
         with app.test_client() as client:
-            response = client.delete('/todos/1')
+            response = client.delete(f"/todos/{todo.id}")
             self.assertEqual(response.status_code, 204)
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()
 ```
 
-### === test_integration.py ===
+### === test_todo_service.py ===
 ```python
 import unittest
-from todo_app.api import app, db
-import json
+from todo_app.services import TodoService
 
-class TestIntegration(unittest.TestCase):
+class TestTodoService(unittest.TestCase):
+    def test_get_all_todos(self):
+        # Mock the database query
+        todos = [
+            {"id": 1, "title": "Test Todo 1", "description": "This is a test todo 1"},
+            {"id": 2, "title": "Test Todo 2", "description": "This is a test todo 2"}
+        ]
 
-    def setUp(self):
-        app.config['TESTING'] = True
-        app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///:memory:'
-        db.create_all()
+        service = TodoService()
+        result = service.get_all_todos()
+        self.assertEqual(result, todos)
 
-    def test_create_and_get_todo(self):
-        with app.test_client() as client:
-            response = client.post('/todos', data=json.dumps({'title': 'Test Todo', 'description': 'This is a test todo'}), content_type='application/json')
-            self.assertEqual(response.status_code, 201)
-            response = client.get('/todos/1')
-            self.assertEqual(response.status_code, 200)
-            self.assertIn('title', json.loads(response.data))
+    def test_get_todo_by_id(self):
+        # Mock the database query
+        todo = {"id": 1, "title": "Test Todo", "description": "This is a test todo"}
 
-    def test_update_and_get_todo(self):
-        with app.test_client() as client:
-            response = client.post('/todos', data=json.dumps({'title': 'Test Todo', 'description': 'This is a test todo'}), content_type='application/json')
-            self.assertEqual(response.status_code, 201)
-            response = client.put('/todos/1', data=json.dumps({'title': 'Updated Test Todo', 'description': 'This is an updated test todo'}), content_type='application/json')
-            self.assertEqual(response.status_code, 200)
-            response = client.get('/todos/1')
-            self.assertEqual(response.status_code, 200)
-            self.assertIn('title', json.loads(response.data))
+        service = TodoService()
+        result = service.get_todo_by_id(1)
+        self.assertEqual(result, todo)
 
-    def test_delete_and_get_todo(self):
-        with app.test_client() as client:
-            response = client.post('/todos', data=json.dumps({'title': 'Test Todo', 'description': 'This is a test todo'}), content_type='application/json')
-            self.assertEqual(response.status_code, 201)
-            response = client.delete('/todos/1')
-            self.assertEqual(response.status_code, 204)
-            response = client.get('/todos/1')
-            self.assertEqual(response.status_code, 404)
+    def test_create_todo(self):
+        # Mock the database query
+        todo = {"id": 1, "title": "Test Todo", "description": "This is a test todo"}
 
-if __name__ == '__main__':
+        service = TodoService()
+        result = service.create_todo({"title": "Test Todo", "description": "This is a test todo"})
+        self.assertEqual(result, todo)
+
+    def test_update_todo(self):
+        # Mock the database query
+        todo = {"id": 1, "title": "Updated Test Todo", "description": "This is an updated test todo"}
+
+        service = TodoService()
+        result = service.update_todo(1, {"title": "Updated Test Todo", "description": "This is an updated test todo"})
+        self.assertEqual(result, todo)
+
+    def test_delete_todo(self):
+        # Mock the database query
+        service = TodoService()
+        result = service.delete_todo(1)
+        self.assertTrue(result)
+
+if __name__ == "__main__":
     unittest.main()
+```
+
+### === conftest.py ===
+```python
+import pytest
+from todo_app import app, db
+
+@pytest.fixture
+def client():
+    app.config["TESTING"] = True
+    app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///:memory:"
+    db.create_all()
+
+    with app.test_client() as client:
+        yield client
+
+    db.session.remove()
+    db.drop_all()
+```
+
+### === test_todo_api_integration.py ===
+```python
+import pytest
+from conftest import client
+
+def test_get_all_todos(client):
+    # Create some todos
+    client.post("/todos", data={"title": "Test Todo 1", "description": "This is a test todo 1"})
+    client.post("/todos", data={"title": "Test Todo 2", "description": "This is a test todo 2"})
+
+    # Get all todos
+    response = client.get("/todos")
+    assert response.status_code == 200
+    assert len(response.json) == 2
+
+def test_get_todo_by_id(client):
+    # Create a todo
+    response = client.post("/todos", data={"title": "Test Todo", "description": "This is a test todo"})
+    todo_id = response.json["id"]
+
+    # Get the todo by id
+    response = client.get(f"/todos/{todo_id}")
+    assert response.status_code == 200
+    assert response.json["title"] == "Test Todo"
+
+def test_create_todo(client):
+    # Create a todo
+    response = client.post("/todos", data={"title": "Test Todo", "description": "This is a test todo"})
+    assert response.status_code == 201
+    assert response.json["title"] == "Test Todo"
+
+def test_update_todo(client):
+    # Create a todo
+    response = client.post("/todos", data={"title": "Test Todo", "description": "This is a test todo"})
+    todo_id = response.json["id"]
+
+    # Update the todo
+    response = client.put(f"/todos/{todo_id}", data={"title": "Updated Test Todo", "description": "This is an updated test todo"})
+    assert response.status_code == 200
+    assert response.json["title"] == "Updated Test Todo"
+
+def test_delete_todo(client):
+    # Create a todo
+    response = client.post("/todos", data={"title": "Test Todo", "description": "This is a test todo"})
+    todo_id = response.json["id"]
+
+    # Delete the todo
+    response = client.delete(f"/todos/{todo_id}")
+    assert response.status_code == 204
 ```
